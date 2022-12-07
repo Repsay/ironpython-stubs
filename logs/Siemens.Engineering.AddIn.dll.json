@@ -1,0 +1,8 @@
+{
+  "Siemens.Engineering.AddIn.dll": {
+    "Siemens.Engineering": "<module 'Engineering' (CLS module from Siemens.Engineering.AddIn, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>", 
+    "Siemens.Engineering.AddIn.Menu": "<module 'Menu' (CLS module from Siemens.Engineering.AddIn, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>", 
+    "Siemens.Engineering.AddIn": "<module 'AddIn' (CLS module from Siemens.Engineering.AddIn, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>", 
+    "Siemens": "<module 'Siemens' (CLS module from Siemens.Engineering.AddIn, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>"
+  }
+}

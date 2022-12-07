@@ -1,0 +1,7 @@
+{
+  "Siemens.Engineering.Hmi.dll": {
+    "Siemens.Engineering": "<module 'Engineering' (CLS module from Siemens.Engineering.Hmi, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>", 
+    "Siemens.Engineering.Hmi": "<module 'Hmi' (CLS module from Siemens.Engineering.Hmi, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>", 
+    "Siemens": "<module 'Siemens' (CLS module from Siemens.Engineering.Hmi, Version=15.1.0.0, Culture=neutral, PublicKeyToken=d29ec89bac048f84)>"
+  }
+}
