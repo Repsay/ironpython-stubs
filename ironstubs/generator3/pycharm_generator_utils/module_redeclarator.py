@@ -596,7 +596,7 @@ class ModuleRedeclarator(object):
         if ret_literal and not is_init:
             out(indent + 1, "return ", ret_literal)
         else:
-            out(indent + 1, "pass")
+            out(indent + 1, "...")
         if deco and not HAS_DECORATORS:
             out(indent, p_name, " = ", deco, "(", p_name, ")", deco_comment)
         out(0, "") # empty line after each item
@@ -623,6 +623,15 @@ class ModuleRedeclarator(object):
         bases = get_bases(p_class)
         base_def = ""
         skipped_bases = []
+        if len(bases) == 1 and bases[0] == object:
+            skipped_bases.append(str(bases[0]))
+            bases = ()
+        _, dropped = get_dropped_bases(p_class)
+        skipped_bases.extend([str(elem) for elem in dropped])
+        for elem in dropped:
+            if elem in bases:
+                idx = bases.index(elem)
+                bases = bases[:idx] + bases[idx+1:]
         if bases:
             skip_qualifiers = [p_modname, BUILTIN_MOD_NAME, 'exceptions']
             skip_qualifiers.extend(KNOWN_FAKE_REEXPORTERS.get(p_modname, ()))
@@ -696,26 +705,20 @@ class ModuleRedeclarator(object):
             else:
                 others[item_name] = item
                 #
+        methods = get_methods(p_class)
+        properties = get_properties(p_class)
         if we_are_the_base_class:
             others["__dict__"] = {} # force-feed it, for __dict__ does not contain a reference to itself :)
             # add fake __init__s to have the right sig
         if p_class in FAKE_BUILTIN_INITS:
             methods["__init__"] = self.fake_builtin_init
             note("Faking init of %s", p_name)
-        elif '__init__' not in methods:
-            init_method = getattr(p_class, '__init__', None)
-            if init_method:
-                methods['__init__'] = init_method
+        # elif '__init__' not in methods:
+        #     init_method = getattr(p_class, '__init__', None)
+        #     if init_method:
+        #         methods['__init__'] = init_method
 
         #
-        seen_funcs = {}
-        for item_name in sorted_no_case(methods.keys()):
-            item = methods[item_name]
-            try:
-                self.redo_function(out, item, item_name, indent + 1, p_class, p_modname, classname=p_name, seen=seen_funcs)
-            except:
-                handle_error_func(item_name, out)
-                #
         known_props = KNOWN_PROPS.get(p_modname, {})
         a_setter = "lambda self, v: None"
         a_deleter = "lambda self: None"
@@ -745,16 +748,28 @@ class ModuleRedeclarator(object):
                         out(indent + 1, '""":type: ', prop_type, '"""')
                     out(0, "")
             else:
-                out(indent + 1, item_name, " = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default")
+                out(indent + 1, "@property")
+                out(indent + 1, "def ", item_name, "(self):", " ..." if not prop_docstring else "")
                 if prop_docstring:
-                    out(indent + 1, '"""', prop_docstring, '"""')
+                    out_docstring(out, prop_docstring, indent + 2)
+                    out(indent + 2, "...")
                 out(0, "")
         if properties:
             out(0, "") # empty line after the block
             #
+        seen_funcs = {}
+        for item_name in sorted_no_case(methods.keys()):
+            item = methods[item_name]
+            try:
+                self.redo_function(out, item, item_name, indent + 1, p_class, p_modname, classname=p_name, seen=seen_funcs)
+            except:
+                handle_error_func(item_name, out)
+                #
+
         for item_name in sorted_no_case(others.keys()):
-            item = others[item_name]
-            self.fmt_value(out, item, indent + 1, prefix=item_name + " = ")
+            if not item_name is None:
+                item = others[item_name]
+                self.fmt_value(out, item, indent + 1, prefix=item_name + " = ")
         if p_name == "object":
             out(indent + 1, "__module__ = ''")
         if others:
@@ -762,8 +777,6 @@ class ModuleRedeclarator(object):
             #
         if not methods and not properties and not others:
             out(indent + 1, "pass")
-
-
 
     def redo_simple_header(self, p_name):
         """Puts boilerplate code on the top"""
@@ -793,7 +806,6 @@ class ModuleRedeclarator(object):
         if p_name == BUILTIN_MOD_NAME and version[0] == 2 and version[1] >= 6:
             out(0, "from __future__ import print_function")
         out_doc_attr(out, self.module, 0)
-
 
     def redo_imports(self):
         module_type = type(sys)
@@ -865,6 +877,18 @@ class ModuleRedeclarator(object):
                 if not item_name in self.module.__dict__: continue
                 item = self.module.__dict__[item_name] # have it raw
 
+            type_collision = False
+            type_collision_class = False
+
+            if str(type(item)) == "<type 'type-collision'>":
+                type_collision = True
+
+                try:
+                    _ = item.__dict__
+                    type_collision_class = True
+                except:
+                    continue
+
             # unless we're adamantly positive that the name was imported, we assume it is defined here
             mod_name = None # module from which p_name might have been imported
             # IronPython has non-trivial reexports in System module, but not in others:
@@ -912,7 +936,7 @@ class ModuleRedeclarator(object):
                     if item_name not in import_list:
                         import_list.append(item_name)
             if not want_to_import:
-                if isinstance(item, type) or type(item).__name__ == 'classobj':
+                if isinstance(item, type) or type(item).__name__ == 'classobj' or (type_collision and type_collision_class):
                     classes[item_name] = item
                 elif is_callable(item): # some classes are callable, check them before functions
                     funcs[item_name] = item
