@@ -1,5 +1,6 @@
 from constants import *
 import keyword
+import clr
 
 try:
     import inspect
@@ -226,9 +227,73 @@ def get_mro(a_class):
 def get_bases(a_class): # TODO: test for classes that don't fit this scheme
     """Returns a sequence of class's bases."""
     if hasattr(a_class, "__bases__"):
-        return a_class.__bases__
+        bases = a_class.__bases__
+        if len(bases) > 0:
+            for base in bases:
+                sub_bases = get_bases(base)
+                for sub_base in sub_bases:
+                    if sub_base in bases:
+                        idx = bases.index(sub_base)
+                        bases = bases[:idx] + bases[idx+1:]
+        return bases
     else:
         return ()
+
+def get_dropped_bases(a_class): # TODO: test for classes that don't fit this scheme
+    """Returns a sequence of class's bases."""
+    if hasattr(a_class, "__bases__"):
+        bases = a_class.__bases__
+        dropped = []
+        if len(bases) > 0:
+            for base in bases:
+                sub_bases, x = get_dropped_bases(base)
+                dropped.extend(x)
+                for sub_base in sub_bases:
+                    if sub_base in bases:
+                        idx = bases.index(sub_base)
+                        dropped.append(sub_base)
+                        bases = bases[:idx] + bases[idx+1:]
+        return bases, list(set(dropped))
+    else:
+        return (), []
+
+def get_methods(a_class):
+    """Returns a sequence of class's methods."""
+    if hasattr(a_class, "__dict__"):
+        methods = {}
+        for key in a_class.__dict__:
+            if is_callable(a_class.__dict__[key]):
+                methods[key] = a_class.__dict__[key]
+
+        bases = get_bases(a_class)
+        for base in bases:
+            if hasattr(base, "__dict__"):
+                for key in base.__dict__:
+                    if is_callable(base.__dict__[key]):
+                        if key in methods:
+                            methods.pop(key)
+        return methods
+    else:
+        return {}
+
+def get_properties(a_class):
+    """Returns a sequence of class's properties."""
+    if hasattr(a_class, "__dict__"):
+        properties = {}
+        for key in a_class.__dict__:
+            if is_property(a_class.__dict__[key]):
+                properties[key] = a_class.__dict__[key]
+
+        bases = get_bases(a_class)
+        for base in bases:
+            if hasattr(base, "__dict__"):
+                for key in base.__dict__:
+                    if is_property(base.__dict__[key]):
+                        if key in properties:
+                            properties.pop(key)
+        return properties
+    else:
+        return {}
 
 
 def is_callable(x):
@@ -463,6 +528,7 @@ def out_docstring(out_func, docstring, indent):
         else:
             out_func(indent, '"""')
             for line in lines:
+                if line.strip() == '': continue
                 try:
                     out_func(indent, line)
                 except UnicodeEncodeError:
@@ -500,24 +566,25 @@ def restore_by_inspect(p_func):
     """
     Returns paramlist restored by inspect.
     """
-    args, varg, kwarg, defaults = inspect.getargspec(p_func)
-    spec = []
-    if defaults:
-        dcnt = len(defaults) - 1
-    else:
-        dcnt = -1
-    args = args or []
-    args.reverse() # backwards, for easier defaults handling
-    for arg in args:
-        if dcnt >= 0:
-            arg += "=" + sanitize_value(defaults[dcnt])
-            dcnt -= 1
-        spec.insert(0, arg)
-    if varg:
-        spec.append("*" + varg)
-    if kwarg:
-        spec.append("**" + kwarg)
-    return flatten(spec)
+    # args, varg, kwarg, defaults = inspect.getargspec(p_func)
+    # spec = []
+    # if defaults:
+    #     dcnt = len(defaults) - 1
+    # else:
+    #     dcnt = -1
+    # args = args or []
+    # args.reverse() # backwards, for easier defaults handling
+    # for arg in args:
+    #     if dcnt >= 0:
+    #         arg += "=" + sanitize_value(defaults[dcnt])
+    #         dcnt -= 1
+    #     spec.insert(0, arg)
+    # if varg:
+    #     spec.append("*" + varg)
+    # if kwarg:
+    #     spec.append("**" + kwarg)
+    # return flatten(spec)
+    return inspect.formatargspec(*inspect.getargspec(p_func), formatvalue=lambda value: "= ...")
 
 def restore_parameters_for_overloads(parameter_lists):
     param_index = 0
@@ -655,7 +722,7 @@ def restore_clr(p_name, p_class):
     if p_name == '__new__':
         methods = [c for c in clr_type.GetConstructors()]
         if not methods:
-            return False, p_name + '(self, *args)', 'cannot find CLR constructor' # "self" is always first argument of any non-static method
+            return False, p_name + '(cls, *args)', 'cannot find CLR constructor' # "self" is always first argument of any non-static method
     else:
         methods = [m for m in clr_type.GetMethods() if m.Name == p_name]
         if not methods:
