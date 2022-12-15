@@ -1,4 +1,6 @@
 *.log
 __pycache__
 *.pyc
-release/testing
+*.bak
+release/
+logs/
