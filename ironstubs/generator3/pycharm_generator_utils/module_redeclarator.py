@@ -923,7 +923,7 @@ class ModuleRedeclarator(object):
                             if not imported:
                                 break
                         imported_path = (getattr(imported, '__file__', False) or "").lower()
-                        want_to_import = not (imported_path.endswith('.py') or imported_path.endswith('.pyc'))
+                        want_to_import = not (imported_path.endswith('.pyi') or imported_path.endswith('.pyc'))
                         imported_name = getattr(imported, "__name__", None)
                         if imported_name == p_name:
                             want_to_import = False
@@ -1136,4 +1136,4 @@ class ModuleRedeclarator(object):
 
 
 def module_to_package_name(module_name):
-    return re.sub(r"(.*)\.py$", r"\1", module_name)
+    return re.sub(r"(.*)\.pyi$", r"\1", module_name)

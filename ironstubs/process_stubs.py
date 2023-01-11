@@ -103,7 +103,7 @@ print("Starting...")
 print(SAVE_PATH)
 
 for root, subfolders, files in os.walk(SAVE_PATH):
-    py_files = [f for f in files if f.endswith(".py")]
+    py_files = [f for f in files if f.endswith(".pyi")]
     for filename in py_files:
         filepath = join(root, filename)
         filesize = os.path.getsize(filepath)
@@ -116,7 +116,7 @@ for root, subfolders, files in os.walk(SAVE_PATH):
         print("Processing File detected: {}".format(filepath))
 
         if TESTING:
-            if not filepath.endswith("DB\\__init__.py"):
+            if not filepath.endswith("DB\\__init__.pyi"):
                 continue
 
         # SOME OF THESE WORK IN TESTS BUT ARE NOT WORKING ON BATCH REPLACEMENT
@@ -146,11 +146,11 @@ for root, subfolders, files in os.walk(SAVE_PATH):
             print("=" * 30)
             print("WARNING: file above breaking max: {}".format(new_filepath))
 
-            module_name = os.path.basename(filepath).replace(".py", "_parts")
+            module_name = os.path.basename(filepath).replace(".pyi", "_parts")
             chunks_dir = join(new_filedir, module_name)
 
             # Create Blank Init File
-            write_source(join(chunks_dir, "__init__.py"), "")
+            write_source(join(chunks_dir, "__init__.pyi"), "")
 
             # Split File into Classes
             chunks = re.split(r"(?:\n)class ", new_source)

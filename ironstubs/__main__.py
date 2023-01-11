@@ -99,8 +99,12 @@ if arguments['make']:
         ASSEMBLIES = [option_assembly_name]
 
     for assembly_name in ASSEMBLIES:
-        assembly_dict = make(release_dir, assembly_name,
-                             overwrite=option_overwrite, quiet=option_all or option_quiet)
+        try:
+            assembly_dict = make(release_dir, assembly_name,
+                                overwrite=option_overwrite, quiet=option_all or option_quiet)
+        except Exception as e:
+            print(e)
+            pass
         if option_json:
             dump_json_log(assembly_dict)
     logger.info('Done: {} seconds'.format(timer.stop()))

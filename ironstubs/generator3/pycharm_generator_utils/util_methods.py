@@ -658,7 +658,7 @@ def format_accessors(accessor_line, getter, setter, deleter):
 
 def has_regular_python_ext(file_name):
     """Does name end with .py?"""
-    return file_name.endswith(".py")
+    return file_name.endswith(".pyi")
     # Note that the standard library on MacOS X 10.6 is shipped only as .pyc files, so we need to
     # have them processed by the generator in order to have any code insight for the standard library.
 
@@ -748,22 +748,23 @@ def build_output_name(dirname, qualified_name):
     qualifiers = qualified_name.split(".")
     if dirname and not dirname.endswith("/") and not dirname.endswith("\\"):
         dirname += os.path.sep # "a -> a/"
-    for pathindex in range(len(qualifiers) - 1): # create dirs for all qualifiers but last
+
+    for pathindex in range(len(qualifiers)): # create dirs for all qualifiers but last
         subdirname = dirname + os.path.sep.join(qualifiers[0: pathindex + 1])
         if not os.path.isdir(subdirname):
             action("creating subdir %r", subdirname)
             os.makedirs(subdirname)
-        init_py = os.path.join(subdirname, "__init__.py")
-        if os.path.isfile(subdirname + ".py"):
-            os.rename(subdirname + ".py", init_py)
+        init_py = os.path.join(subdirname, "__init__.pyi")
+        if os.path.isfile(subdirname + ".pyi"):
+            os.rename(subdirname + ".pyi", init_py)
         elif not os.path.isfile(init_py):
             init = fopen(init_py, "w")
             init.close()
     target_name = dirname + os.path.sep.join(qualifiers)
     if os.path.isdir(target_name):
-        fname = os.path.join(target_name, "__init__.py")
+        fname = os.path.join(target_name, "__init__.pyi")
     else:
-        fname = target_name + ".py"
+        fname = os.path.join(target_name, "__init__.pyi")
 
     dirname = os.path.dirname(fname)
 

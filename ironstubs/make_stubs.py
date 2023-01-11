@@ -96,7 +96,7 @@ def crawl_loaded_references(target_assembly_name):
 def stub_exists(output_dir, module_path):
     """ Check if Stub exists """
     path = os.path.join(output_dir, *module_path.split('.'))
-    exists = os.path.exists(path) or os.path.exists(path + '.py')
+    exists = os.path.exists(path) or os.path.exists(path + '.pyi')
     return exists
 
 def create_stubs(output_dir, module_path):
@@ -169,11 +169,3 @@ def make(output_dir, assembly_or_builtin, overwrite=False, quiet=False):
 
         logger.info('Stubs Created')
     return assembly_dict
-
-
-
-
-
-
-
-

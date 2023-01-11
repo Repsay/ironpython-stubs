@@ -94,6 +94,7 @@ def is_skipped_module(path, f):
 
 def is_module(d, root):
     return (os.path.exists(os.path.join(root, d, "__init__.py")) or
+            os.path.exists(os.path.join(root, d, "__init__.pyi")) or
             os.path.exists(os.path.join(root, d, "__init__.pyc")) or
             os.path.exists(os.path.join(root, d, "__init__.pyo")))
 
@@ -176,7 +177,7 @@ def list_sources(paths, target_path):
 
             for root, files in walk_python_path(path):
                 for name in files:
-                    if name.endswith('.py'):
+                    if name.endswith('.pyi'):
                         file_path = os.path.join(root, name)
                         if target_path is not None:
                             relpath = os.path.relpath(root, path)
@@ -227,7 +228,7 @@ def zip_sources(zip_path):
                     # /.../dist-packages/setuptools/script template (dev).py setuptools/script template (dev).py
                     split_items = line.split()
                     if len(split_items) > 2:
-                        match_two_files = re.match(r'^(.+\.py)\s+(.+\.py)$', line)
+                        match_two_files = re.match(r'^(.+\.pyi)\s+(.+\.pyi)$', line)
                         if not match_two_files:
                             report("Error(zip_sources): invalid line '%s'" % line)
                             continue
