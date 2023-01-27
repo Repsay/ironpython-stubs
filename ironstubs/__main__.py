@@ -26,11 +26,12 @@ Gui Talarico
 import sys
 import os
 import json
+import shutil
 
 from utils.docopt import docopt
 from utils.logger import logger
 from utils.helper import Timer
-from default_settings import PATHS, BUILTINS, ASSEMBLIES
+from default_settings import PATHS, BUILTINS, ASSEMBLIES, CUSTOM
 from make_stubs import make, dump_json_log
 
 __version__ = '1.0.0'
@@ -98,13 +99,43 @@ if arguments['make']:
     if not option_all:
         ASSEMBLIES = [option_assembly_name]
 
-    for assembly_name in ASSEMBLIES:
-        try:
-            assembly_dict = make(release_dir, assembly_name,
-                                overwrite=option_overwrite, quiet=option_all or option_quiet)
-        except Exception as e:
-            print(e)
-            pass
-        if option_json:
-            dump_json_log(assembly_dict)
+    for run in range(2):
+        for i, assembly_name in enumerate(ASSEMBLIES):
+            try:
+                logger.info('Processing: {} ({}/{})'.format(run + 1, i + 1, len(ASSEMBLIES)))
+                assembly_dict = make(release_dir, assembly_name,
+                                    overwrite=option_overwrite, quiet=option_all or option_quiet, counter=run)
+            except Exception as e:
+                print(e)
+                assembly_dict = {}
+                pass
+            if option_json:
+                dump_json_log(assembly_dict)
+
+    if option_all:
+        for run in range(2):
+            for assembly_name in BUILTINS:
+                try:
+                    assembly_dict = make(release_dir, assembly_name,
+                                        overwrite=option_overwrite, quiet=option_all or option_quiet, counter=run)
+                except Exception as e:
+                    print(e)
+                    pass
+                if option_json:
+                    dump_json_log(assembly_dict)
+
+        for run in range(2):
+            for assembly_name in CUSTOM:
+                try:
+                    assembly_dict = make(release_dir, assembly_name,
+                                        overwrite=option_overwrite, quiet=option_all or option_quiet, counter=run)
+                except Exception as e:
+                    print(e)
+                    pass
+                if option_json:
+                    dump_json_log(assembly_dict)
+
+
+    shutil.rmtree('logs/run', ignore_errors=True)
+
     logger.info('Done: {} seconds'.format(timer.stop()))

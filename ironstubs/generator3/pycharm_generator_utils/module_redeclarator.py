@@ -2,6 +2,14 @@ import keyword
 
 from util_methods import *
 from constants import *
+import ast
+import json
+from copy import copy
+import inspect
+
+CATALOG = "logs/catalog.json"
+
+BUILDIN_CLASSES = ["str", "int", "float", "bool", "list", "dict", "tuple", "set", "object", "Self", "Exception"]
 
 
 class emptylistdict(dict):
@@ -86,6 +94,23 @@ class ModuleRedeclarator(object):
         self.doing_builtins = doing_builtins
         self.ret_type_cache = {}
         self.used_imports = emptylistdict() # qual_mod_name -> [imported_names,..]: actually used imported names
+        self.used_imports_not_found = []
+        if os.path.isfile(CATALOG):
+            with open(CATALOG, "r") as f:
+                self.catalog = json.load(f)
+
+            if ":" in str(self.module):
+                name_ = str(self.module).split(":")[1]
+            else:
+                name_ = str(self.module)
+
+            self.own_catalog = self.catalog[name_] if name_ in self.catalog else []
+
+            self.catalog[name_] = []
+
+        else:
+            self.own_catalog = []
+            self.catalog = {}
 
     def _initializeQApp4(self):
         try:  # QtGui should be imported _before_ QtCore package.
@@ -167,6 +192,115 @@ class ModuleRedeclarator(object):
             data += "."
         data += name + " import " + name + "\n"
         return data
+
+    def find_class_import_statement(self, class_name):
+        """
+        Finds the import statement for a given class in all python files under a given directory.
+        Args:
+        - class_name: The name of the class to find the import statement for
+        - directory_path: The path of the directory to search for the import statement in
+        Returns:
+        - The import statement for the class, or None if not found
+        """
+
+        if class_name in BUILDIN_CLASSES:
+            return True
+
+        if ":" in str(self.module):
+            name_ = str(self.module).split(":")[1]
+        else:
+            name_ = str(self.module)
+
+        if class_name in self.own_catalog:
+            for module, names in self.used_imports.items():
+                if class_name in names:
+                    self.used_imports[module].remove(class_name)
+
+            return True
+
+        action("Searching for class import statement for " + class_name)
+
+        found = False
+
+        options = []
+
+        for module, classes in self.catalog.items():
+            if class_name in classes and module != name_:
+                options.append(module)
+
+            if class_name in classes:
+                found = True
+
+        lowest_level = 999
+        lowest_value = None
+
+        for option in options:
+            level = len(option.split('.'))
+            if level < lowest_level:
+                lowest_level = level
+                lowest_value = option
+
+        if not lowest_value is None:
+            if lowest_value in self.used_imports:
+                self.used_imports[lowest_value].append(class_name)
+            else:
+                self.used_imports[lowest_value] = [class_name]
+
+        return found
+
+        # if cur_path == "":
+        #     cur_path = directory_path
+
+
+
+        # if os.path.isfile(self.outfile):
+        #     with open(self.outfile, "r+") as file:
+        #         file_content = file.read()
+
+        #         search_string = r'^class\s+' + class_name + r'\s*(?:\([\w.,\s]*\))?:'
+
+        #         class_definition = re.search(search_string, file_content, re.MULTILINE)
+
+        #         file.close()
+
+        #     if class_definition:
+        #         return True
+
+        # for name in os.listdir(cur_path):
+        #     full_path = os.path.join(cur_path, name)
+        #     if name.endswith('.pyi'):
+        #         with open(full_path, "r+") as file:
+        #             file_content = file.read()
+
+        #             search_string = r'^class\s+' + class_name + r'\s*(?:\([\w.,\s]*\))?:'
+
+        #             class_definition = re.search(search_string, file_content, re.MULTILINE)
+
+        #             file.close()
+
+        #         if class_definition:
+        #             if not full_path == self.outfile:
+        #                 relative_path = os.path.relpath(cur_path, directory_path)
+        #                 package_name = relative_path.replace(os.path.sep, '.')
+        #                 if self.used_imports.get(package_name) is None:
+        #                     self.used_imports[package_name] = [class_name]
+        #                 else:
+        #                     if class_name not in self.used_imports[package_name]:
+        #                         self.used_imports[package_name].append(class_name)
+
+
+        #             return True
+
+
+        # for name in os.listdir(cur_path):
+        #     full_path = os.path.join(cur_path, name)
+        #     if os.path.isdir(full_path):
+        #         found = self.find_class_import_statement(class_name, directory_path, full_path, found)
+        #         if found:
+        #             return found
+
+        # return False
+
 
     def find_imported_name(self, item):
         """
@@ -303,7 +437,7 @@ class ModuleRedeclarator(object):
                             representation = repr(p_value)
                         except Exception:
                             import traceback
-                            traceback.print_exc(file=sys.stderr)
+                            traceback.print_exc(file=sys.stdout)
                             return
                         real_value = cleanup(representation)
                         if found_name:
@@ -520,8 +654,11 @@ class ModuleRedeclarator(object):
             elif type(p_func).__name__.startswith('staticmethod'):
                 deco = "staticmethod"
         if p_name == "__new__":
-            deco = "staticmethod"
-            deco_comment = " # known case of __new__"
+            # deco = "staticmethod"
+            # deco_comment = " # known case of __new__"
+            deco = None
+            deco_comment = None
+            pass
 
         action("redoing innards of func %r of class %r", p_name, p_class)
         if deco and HAS_DECORATORS:
@@ -541,7 +678,18 @@ class ModuleRedeclarator(object):
             if sig_note:
                 out(indent, "def ", spec, ": #", sig_note)
             else:
-                out(indent, "def ", spec, ":")
+                doc = out_doc_attr_no_out(out, p_func, indent + 1, p_class)
+                if p_name == "__new__":
+                    if doc:
+                        doc = doc.replace(")", ") -> Self")
+                        if "typing" in self.used_imports.keys():
+                            if not "Self" in self.used_imports["typing"]:
+                                self.used_imports["typing"].append("Self")
+                        else:
+                            self.used_imports["typing"] = ["Self"]
+
+                spec = self.add_types_to_declaration_from_string(spec, doc)
+                out(indent, "def ", spec)
             if not p_name in ['__gt__', '__ge__', '__lt__', '__le__', '__ne__', '__reduce_ex__', '__str__']:
                 out_doc_attr(out, p_func, indent + 1, p_class)
         elif mod_class_method_tuple in PREDEFINED_MOD_CLASS_SIGS:
@@ -601,6 +749,75 @@ class ModuleRedeclarator(object):
             out(indent, p_name, " = ", deco, "(", p_name, ")", deco_comment)
         out(0, "") # empty line after each item
 
+    def add_types_to_declaration_from_string(self, func_declaration, docstring):
+        func_name, args_str = func_declaration.split("(")
+        func_args = map(str.strip, args_str.strip(")").split(","))
+        arg_types, return_type_raw, return_found, args_found = self.extract_types_from_docstring(docstring, len(list(func_args)))
+        if return_type_raw is not None:
+            if "Tuple_[" in return_type_raw:
+                return_type = return_type_raw.strip()
+            else:
+                return_type = return_type_raw.split('[')[0].strip()
+        else:
+            return_type = None
+
+        if not return_found:
+            if return_type in BUILDIN_CLASSES:
+                return_found = True
+
+        if arg_types is None:
+            if return_found:
+                return "{} -> {}:".format(func_declaration, return_type) if return_type is not None else "{}:".format(func_declaration)
+            else:
+                return "{}: # -> {}".format(func_declaration, return_type) if return_type is not None else "{}:".format(func_declaration)
+        # Get the function name and arguments from the string
+
+        if len(list(func_args)) != len(arg_types):
+            if return_found:
+                return "{} -> {}:".format(func_declaration, return_type) if return_type is not None else "{}:".format(func_declaration)
+            else:
+                return "{}: # -> {}".format(func_declaration, return_type) if return_type is not None else "{}:".format(func_declaration)
+        # Add the types to the function declaration
+        return_args = []
+        not_found_args = {}
+        for i, arg in enumerate(func_args):
+            if arg != "*args" and arg != "**kwargs" and arg != "self" and arg != "cls":
+                if not args_found[i]:
+                    if arg_types[i] in BUILDIN_CLASSES:
+                        arg_found = True
+                    else:
+                        arg_found = False
+                else:
+                    arg_found = True
+
+                arg_default = False
+                if "=None" in arg:
+                    arg = arg.replace("=None", "")
+                    arg_default = True
+
+                if arg_found:
+                    if arg_default:
+                        return_args.append("{}:{}".format(arg, arg_types[i]) + " = ...")
+                    else:
+                        return_args.append("{}:{}".format(arg, arg_types[i]))
+                else:
+                    not_found_args[arg] = arg_types[i]
+                    if arg_default:
+                        return_args.append(arg + " = ...")
+                    else:
+                        return_args.append(arg)
+            else:
+                return_args.append(arg)
+
+        if return_found:
+            typed_declaration = "{}({}) -> {}:".format(func_name, ', '.join(return_args), return_type) if return_type is not None else "{}({}):".format(func_name, ', '.join(return_args))
+        else:
+            typed_declaration = "{}({}): # -> {}".format(func_name, ', '.join(return_args), return_type) if return_type is not None else "{}({}):".format(func_name, ', '.join(return_args))
+
+        if len(not_found_args) > 0:
+            typed_declaration += " # Not found arg types: {}".format(not_found_args)
+        return typed_declaration
+
 
     def redo_class(self, out, p_class, p_name, indent, p_modname=None, seen=None, inspect_dir=False):
         """
@@ -613,6 +830,20 @@ class ModuleRedeclarator(object):
         @param seen {class: name} map of classes already seen in the same namespace
         """
         action("redoing class %r of module %r", p_name, p_modname)
+
+        if ":" in str(self.module):
+            name_ = str(self.module).split(":")[1]
+        else:
+            name_ = str(self.module)
+
+        if name_ in self.catalog.keys():
+            self.catalog[name_] = list(set(self.catalog[name_]))
+            if p_name not in self.catalog[name_]:
+                self.catalog[name_].append(p_name)
+        else:
+            self.catalog[name_] = [p_name]
+
+
         if seen is not None:
             if p_class in seen:
                 out(indent, p_name, " = ", seen[p_class])
@@ -627,9 +858,10 @@ class ModuleRedeclarator(object):
             skipped_bases.append(str(bases[0]))
             bases = ()
         _, dropped = get_dropped_bases(p_class)
+        dropped.append(object)
         skipped_bases.extend([str(elem) for elem in dropped])
         for elem in dropped:
-            if elem in bases:
+            while elem in bases:
                 idx = bases.index(elem)
                 bases = bases[:idx] + bases[idx+1:]
         if bases:
@@ -657,6 +889,21 @@ class ModuleRedeclarator(object):
                         self.hidden_imports[qual_module_name] = mangled_qualifier
                 else:
                     bases_list.append(base_name)
+            bases_list = [base.split("[")[0] for base in bases_list]
+            for elem in dropped:
+                while elem.__name__ in bases_list:
+                    idx = bases_list.index(elem.__name__)
+                    bases_list = bases_list[:idx] + bases_list[idx+1:]
+            bases_list = list(set(bases_list))
+            names = copy(self.used_imports_not_found)
+            for list_names in self.used_imports.values():
+                names.extend(list_names)
+
+            for base in bases_list:
+                if not base in names:
+                    found = self.find_class_import_statement(base)
+                    if not found:
+                        self.used_imports_not_found.append(base)
             base_def = "(" + ", ".join(bases_list) + ")"
 
             if self.split_modules:
@@ -682,6 +929,9 @@ class ModuleRedeclarator(object):
         except:
             field_keys = ()
         for item_name in field_keys:
+            item = None
+            if item_name is None or item_name == "None":
+                continue
             if item_name in ("__doc__", "__module__"):
                 if we_are_the_base_class:
                     item = "" # must be declared in base types
@@ -692,6 +942,8 @@ class ModuleRedeclarator(object):
             else:
                 try:
                     item = getattr(p_class, item_name) # let getters do the magic
+                    if item is None:
+                        continue
                 except AttributeError:
                     item = field_source.get(item_name) # have it raw
                     if item is None:
@@ -702,8 +954,11 @@ class ModuleRedeclarator(object):
                 methods[item_name] = item
             elif is_property(item):
                 properties[item_name] = item
+                if others.get(item_name) is not None:
+                    del others[item_name]
             else:
-                others[item_name] = item
+                if (not item_name is None or not item_name == "None") and properties.get(item_name) is None:
+                    others[item_name] = item
                 #
         methods = get_methods(p_class)
         properties = get_properties(p_class)
@@ -723,8 +978,13 @@ class ModuleRedeclarator(object):
         a_setter = "lambda self, v: None"
         a_deleter = "lambda self: None"
         for item_name in sorted_no_case(properties.keys()):
+            if item_name is None or item_name == "None":
+                continue
             item = properties[item_name]
-            prop_docstring = getattr(item, '__doc__', None)
+            try:
+                prop_docstring = getattr(item, '__doc__', None)
+            except:
+                prop_docstring = None
             prop_key = (p_name, item_name)
             if prop_key in known_props:
                 prop_descr = known_props.get(prop_key, None)
@@ -748,11 +1008,15 @@ class ModuleRedeclarator(object):
                         out(indent + 1, '""":type: ', prop_type, '"""')
                     out(0, "")
             else:
+                doc = out_doc_attr_no_out(out, item, indent + 1)
+                spec = item_name + "(self)"
+                spec = self.add_types_to_declaration_from_string(spec, doc)
+
                 out(indent + 1, "@property")
-                out(indent + 1, "def ", item_name, "(self):", " ..." if not prop_docstring else "")
+                out(indent + 1, "def ", spec)
                 if prop_docstring:
                     out_docstring(out, prop_docstring, indent + 2)
-                    out(indent + 2, "...")
+                out(indent + 2, "...")
                 out(0, "")
         if properties:
             out(0, "") # empty line after the block
@@ -762,14 +1026,33 @@ class ModuleRedeclarator(object):
             item = methods[item_name]
             try:
                 self.redo_function(out, item, item_name, indent + 1, p_class, p_modname, classname=p_name, seen=seen_funcs)
-            except:
+            except Exception as e:
                 handle_error_func(item_name, out)
+                import traceback
+                traceback.print_exc(file=sys.stdout)
+                return
                 #
 
         for item_name in sorted_no_case(others.keys()):
-            if not item_name is None:
+            if not item_name is None and not item_name in sorted_no_case(properties.keys()) and not item_name in sorted_no_case(methods.keys()) and not item_name in ["False", "True", "None"]:
                 item = others[item_name]
-                self.fmt_value(out, item, indent + 1, prefix=item_name + " = ")
+                # self.fmt_value(out, item, indent + 1, prefix=item_name + " = ")
+
+                try:
+                    item_type = type(item).__name__
+                except:
+                    item_type = None
+
+                if reliable_repr(item) == "None" or item_type == None or item_type == "NoneType":
+                    out(indent + 1, item_name + " = ...")
+                else:
+                    found = self.find_class_import_statement(item_type)
+                    if found:
+                        out(indent + 1, item_name + ": " + item_type + " = ...")
+                    else:
+                        out(indent + 1, item_name + " = ...")
+                        self.used_imports_not_found.append(item_type)
+
         if p_name == "object":
             out(indent + 1, "__module__ = ''")
         if others:
@@ -843,6 +1126,7 @@ class ModuleRedeclarator(object):
             self._initializeQApp5()
 
         self.redo_simple_header(p_name)
+        self.imports_buf.out(0, "from __future__ import annotations")
 
         # find whatever other self.imported_modules the module knows; effectively these are imports
         action("redoing imports of module %r %r", p_name, str(self.module))
@@ -998,7 +1282,10 @@ class ModuleRedeclarator(object):
                 item = funcs[item_name]
                 try:
                     self.redo_function(out, item, item_name, 0, p_modname=p_name, seen=seen_funcs)
-                except:
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc(file=sys.stdout)
+                    return
                     handle_error_func(item_name, out)
         else:
             self.functions_buf.out(0, "# no functions")
@@ -1103,7 +1390,7 @@ class ModuleRedeclarator(object):
                     right_pos += len(import_heading)
                     names_pack = [import_heading]
                     indent_level = 0
-                    import_names = list(import_names)
+                    import_names = list(set(list(import_names)))
                     import_names.sort()
                     for n in import_names:
                         self._defined[n] = True
@@ -1128,12 +1415,144 @@ class ModuleRedeclarator(object):
 
                     out(0, "") # empty line after group
 
+        not_found_ignore = BUILDIN_CLASSES
+
+        import_names = copy(self.used_imports_not_found)
+        import_names = list(set(import_names))
+        for n in not_found_ignore:
+            if n in import_names:
+                import_names.remove(n)
+
+
+
+        if import_names and len(import_names) > 0:
+            self.add_import_header_if_needed()
+            right_pos = 0 # tracks width of list to fold it at right margin
+            import_heading = '"""The following names are not found in the module: ('
+            right_pos += len(import_heading)
+            names_pack = [import_heading]
+            indent_level = 0
+            import_names.sort()
+            for n in import_names:
+                len_n = len(n)
+                if right_pos + len_n >= 78:
+                    out(indent_level, *names_pack)
+                    names_pack = [n, ", "]
+                    if indent_level == 0:
+                        indent_level = 1 # all but first line is indented
+                    right_pos = self.indent_size + len_n + 2
+                else:
+                    names_pack.append(n)
+                    names_pack.append(", ")
+                    right_pos += (len_n + 2)
+                    # last line is...
+            if indent_level == 0: # one line
+                names_pack[0] = names_pack[0][:-1] # cut off lpar
+                names_pack[-1] = "" # cut last comma
+            else: # last line of multiline
+                names_pack[-1] = ")" # last comma -> rpar
+            out(indent_level, *names_pack)
+
+            out(0, '"""') # empty line after group
+
         if self.hidden_imports:
             self.add_import_header_if_needed()
             for mod_name in sorted_no_case(self.hidden_imports.keys()):
                 out(0, 'import ', mod_name, ' as ', self.hidden_imports[mod_name])
             out(0, "") # empty line after group
 
+        with open(CATALOG, "w") as f:
+            json.dump(self.catalog, f)
+            f.close()
+
+    def extract_types_from_docstring(self, docstring, args_count):
+        # Use regular expressions to match the types in the docstring
+        docstring = re.sub(r"\[[^\]]*\]+", "", docstring)
+        matches = re.findall(r"\(([^\)]*)\)(?: -> (.*))?", docstring)
+        return_found = False
+        if len(matches) > 0:
+            match_i = None
+            has_return = False
+            for i, match in enumerate(matches):
+                if len(match[0].split(", ")) == args_count:
+                    if not has_return and match[1] is not None:
+                        has_return = True
+                        match_i = i
+
+                    if match_i is None:
+                        match_i = i
+                        has_return = match[1] is not None
+                    break
+
+            if match_i is None:
+                match_i = 0
+
+            match = matches[match_i]
+
+            # Extract the types from the match
+            arg_types_raw = match[0].split(", ")
+
+            arg_types = [arg_type.split(":")[1].strip().replace("*", "") for arg_type in arg_types_raw if arg_type and ":" in arg_type]
+            args = [arg_type.split(":")[0].strip() for arg_type in arg_types_raw if arg_type and ":" in arg_type]
+            if match[1] is not None:
+                return_type = match[1].replace('"""', '').strip().replace("*", "")
+            else:
+                return_type = None
+
+            args_found = []
+
+            names = []
+            for list_names in self.used_imports.values():
+                names.extend(list_names)
+
+
+            for i, arg in enumerate(args):
+                if arg == "self" or arg == "cls":
+                    args_found.append(True)
+                else:
+                    if not arg_types[i] in names:
+                        found = self.find_class_import_statement(arg_types[i])
+                        if not found:
+                            self.used_imports_not_found.append(arg_types[i])
+                        args_found.append(found)
+                    else:
+                        args_found.append(True)
+
+
+            if return_type:
+                multiple_output_pattern = r"\(([^\)]*)\)"
+                multiple_output_match = re.search(multiple_output_pattern, return_type)
+
+                if multiple_output_match:
+                    return_type_ = multiple_output_match.group(1)
+                    return_type = "Tuple_[" + return_type_ + "]"
+
+                    if "typing" not in self.used_imports:
+                        self.used_imports["typing"] = []
+
+                    if not "Tuple as Tuple_" in self.used_imports["typing"]:
+                        self.used_imports["typing"].append("Tuple as Tuple_")
+
+                    return_found = True
+
+                    for elem in return_type_.split(","):
+                        elem = elem.strip()
+                        if not elem in names:
+                            elem_found = self.find_class_import_statement(elem)
+                            if not elem_found:
+                                self.used_imports_not_found.append(elem)
+                                return_found = False
+                else:
+                    if not return_type in names:
+                        return_found = self.find_class_import_statement(return_type)
+                        if not return_found:
+                            self.used_imports_not_found.append(return_type)
+                    else:
+                        return_found = True
+            return arg_types, return_type, return_found, args_found
+        else:
+            # If no types are found in the docstring, return None
+            return None, None, False, [False]
 
 def module_to_package_name(module_name):
     return re.sub(r"(.*)\.pyi$", r"\1", module_name)

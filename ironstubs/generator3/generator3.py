@@ -262,7 +262,7 @@ def process_one(name, mod_file_name, doing_builtins, subdir, quiet=False):
         report("Ignored a regular Python file %r", name)
         return True
     if not quiet:
-        say(name)
+        # say(name)
         sys.stdout.flush()
     action("doing nothing")
 
@@ -315,16 +315,18 @@ def process_one(name, mod_file_name, doing_builtins, subdir, quiet=False):
                         redo_module(m, fname, mod_file_name, doing_builtins)
                     finally:
                         action("closing %r", fname)
-    except:
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
         exctype, value = sys.exc_info()[:2]
         import pdb; pdb.set_trace()
         msg = "Failed to process %r while %s: %s"
         args = name, CURRENT_ACTION, str(value)
-        report(msg, *args)
+        # report(msg, *args)
         if debug_mode:
             if sys.platform == 'cli':
                 import traceback
-                traceback.print_exc(file=sys.stderr)
+                traceback.print_exc(file=sys.stdout)
             raise
         return False
     return True
@@ -348,9 +350,9 @@ def get_help_text():
         ' -h -- prints this help message.' '\n'
         ' -d dir -- output dir, must be writable. If not given, current dir is used.' '\n'
         ' -b -- use names from sys.builtin_module_names' '\n'
-        ' -q -- quiet, do not print anything on stdout. Errors still go to stderr.' '\n'
+        ' -q -- quiet, do not print anything on stdout. Errors still go to stdout.' '\n'
         ' -x -- die on exceptions with a stacktrace; only for debugging.' '\n'
-        ' -v -- be verbose, print lots of debug output to stderr' '\n'
+        ' -v -- be verbose, print lots of debug output to stdout' '\n'
         ' -c modules -- import CLR assemblies with specified names' '\n'
         ' -p -- run CLR profiler ' '\n'
         ' -s path_list -- add paths to sys.path before run; path_list lists directories' '\n'

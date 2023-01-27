@@ -69,7 +69,7 @@ import sys
 import warnings
 import re
 import sre_constants
-#~ sys.stderr.write( "testing pyparsing module, version %s, %s\n" % (__version__,__versionTime__ ) )
+#~ sys.stdout.write( "testing pyparsing module, version %s, %s\n" % (__version__,__versionTime__ ) )
 
 __all__ = [
 'And', 'CaselessKeyword', 'CaselessLiteral', 'CharsNotIn', 'Combine', 'Dict', 'Each', 'Empty',
@@ -85,7 +85,7 @@ __all__ = [
 'htmlComment', 'javaStyleComment', 'keepOriginalText', 'line', 'lineEnd', 'lineStart', 'lineno',
 'makeHTMLTags', 'makeXMLTags', 'matchOnlyAtCol', 'matchPreviousExpr', 'matchPreviousLiteral',
 'nestedExpr', 'nullDebugAction', 'nums', 'oneOf', 'opAssoc', 'operatorPrecedence', 'printables',
-'punc8bit', 'pythonStyleComment', 'quotedString', 'removeQuotes', 'replaceHTMLEntity', 
+'punc8bit', 'pythonStyleComment', 'quotedString', 'removeQuotes', 'replaceHTMLEntity',
 'replaceWith', 'restOfLine', 'sglQuotedString', 'srange', 'stringEnd',
 'stringStart', 'traceParseAction', 'unicodeString', 'upcaseTokens', 'withAttribute',
 'indentedBlock', 'originalTextFor',
@@ -132,10 +132,10 @@ else:
             # Replace unprintables with question marks?
             #return unicode(obj).encode(sys.getdefaultencoding(), 'replace')
             # ...
-            
+
     def _str2dict(strg):
         return dict( [(c,0) for c in strg] )
-            
+
     alphas = string.lowercase + string.uppercase
 
 
@@ -423,7 +423,7 @@ class ParseResults(object):
                 self[k] = v
                 if isinstance(v[0],ParseResults):
                     v[0].__parent = wkref(self)
-            
+
         self.__toklist += other.__toklist
         self.__accumNames.update( other.__accumNames )
         del other
@@ -3091,14 +3091,14 @@ def traceParseAction(f):
         s,l,t = paArgs[-3:]
         if len(paArgs)>3:
             thisFunc = paArgs[0].__class__.__name__ + '.' + thisFunc
-        sys.stderr.write( ">>entering %s(line: '%s', %d, %s)\n" % (thisFunc,line(l,s),l,t) )
+        sys.stdout.write( ">>entering %s(line: '%s', %d, %s)\n" % (thisFunc,line(l,s),l,t) )
         try:
             ret = f(*paArgs)
         except Exception:
             exc = sys.exc_info()[1]
-            sys.stderr.write( "<<leaving %s (exception: %s)\n" % (thisFunc,exc) )
+            sys.stdout.write( "<<leaving %s (exception: %s)\n" % (thisFunc,exc) )
             raise
-        sys.stderr.write( "<<leaving %s (ret: %s)\n" % (thisFunc,ret) )
+        sys.stdout.write( "<<leaving %s (ret: %s)\n" % (thisFunc,ret) )
         return ret
     try:
         z.__name__ = f.__name__
@@ -3276,12 +3276,12 @@ def originalTextFor(expr, asString=True):
        restore the parsed fields of an HTML start tag into the raw tag text itself, or to
        revert separate tokens with intervening whitespace back to the original matching
        input text. Simpler to use than the parse action keepOriginalText, and does not
-       require the inspect module to chase up the call stack.  By default, returns a 
-       string containing the original parsed text.  
-       
-       If the optional asString argument is passed as False, then the return value is a 
-       ParseResults containing any results names that were originally matched, and a 
-       single token containing the original matched text from the input string.  So if 
+       require the inspect module to chase up the call stack.  By default, returns a
+       string containing the original parsed text.
+
+       If the optional asString argument is passed as False, then the return value is a
+       ParseResults containing any results names that were originally matched, and a
+       single token containing the original matched text from the input string.  So if
        the expression passed to originalTextFor contains expressions with defined
        results names, you must set asString to False if you want to preserve those
        results name values."""
@@ -3297,7 +3297,7 @@ def originalTextFor(expr, asString=True):
             del t["_original_end"]
     matchExpr.setParseAction(extractText)
     return matchExpr
-    
+
 # convenience constants for positional expressions
 empty       = Empty().setName("empty")
 lineStart   = LineStart().setName("lineStart")
@@ -3577,7 +3577,7 @@ def nestedExpr(opener="(", closer=")", content=None, ignoreExpr=quotedString):
                                 ).setParseAction(lambda t:t[0].strip()))
             else:
                 if ignoreExpr is not None:
-                    content = (Combine(OneOrMore(~ignoreExpr + 
+                    content = (Combine(OneOrMore(~ignoreExpr +
                                     ~Literal(opener) + ~Literal(closer) +
                                     CharsNotIn(ParserElement.DEFAULT_WHITE_CHARS,exact=1))
                                 ).setParseAction(lambda t:t[0].strip()))

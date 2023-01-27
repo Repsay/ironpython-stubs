@@ -128,9 +128,10 @@ def dump_json_log(namespaces_dict):
     with open(filepath, 'w') as fp:
         json.dump(namespaces_dict, fp, indent=2)
 
-def make(output_dir, assembly_or_builtin, overwrite=False, quiet=False):
+def make(output_dir, assembly_or_builtin, overwrite=False, quiet=False, counter=0):
     """ Main Processing Function """
     assembly_dict = {}
+    logs_run = "logs/run"
     print('='*80)
     logger.info('Making [{}]'.format(assembly_or_builtin))
     try:
@@ -160,8 +161,15 @@ def make(output_dir, assembly_or_builtin, overwrite=False, quiet=False):
     else:
         for assembly, modules in assembly_dict.items():
             for module_path in modules.keys():
-                if not stub_exists(output_dir, module_path) or overwrite:
+                run_path = os.path.join(logs_run, module_path + '_' + str(counter) + '.txt')
+                if not stub_exists(output_dir, module_path) or overwrite and not os.path.isfile(run_path):
+                    if not os.path.exists(logs_run):
+                        os.makedirs(logs_run)
+                    with open(run_path, 'w') as fp:
+                        fp.write('Run')
                     create_stubs(output_dir, module_path)
+                elif os.path.isfile(run_path):
+                    logger.info('Skipping [{}] Already Run'.format(module_path))
                 else:
                     logger.info('Skipping [{}] Already Exists'.format(module_path))
             for module_path in modules.keys():

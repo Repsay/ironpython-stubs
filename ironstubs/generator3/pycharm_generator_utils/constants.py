@@ -374,7 +374,7 @@ REPLACE_MODULE_VALUES = {
 }
 if version[0] <= 2:
     REPLACE_MODULE_VALUES[(BUILTIN_MOD_NAME, "None")] = "object()"
-    for std_file in ("stdin", "stdout", "stderr"):
+    for std_file in ("stdin", "stdout", "stdout"):
         REPLACE_MODULE_VALUES[("sys", std_file)] = "open('')" #
 
 # Some functions and methods of some builtin classes have special signatures.

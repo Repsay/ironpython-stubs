@@ -1,11 +1,18 @@
+from __future__ import print_function
+
 from constants import *
 import keyword
 import clr
+import keyword
+
+from ...utils.logger import logger
 
 try:
     import inspect
 except ImportError:
     inspect = None
+
+CURRENT_ACTION_LENGTH = 0
 
 def create_named_tuple():   #TODO: user-skeleton
     return """
@@ -232,7 +239,7 @@ def get_bases(a_class): # TODO: test for classes that don't fit this scheme
             for base in bases:
                 sub_bases = get_bases(base)
                 for sub_base in sub_bases:
-                    if sub_base in bases:
+                    while sub_base in bases:
                         idx = bases.index(sub_base)
                         bases = bases[:idx] + bases[idx+1:]
         return bases
@@ -249,7 +256,7 @@ def get_dropped_bases(a_class): # TODO: test for classes that don't fit this sch
                 sub_bases, x = get_dropped_bases(base)
                 dropped.extend(x)
                 for sub_base in sub_bases:
-                    if sub_base in bases:
+                    while sub_base in bases:
                         idx = bases.index(sub_base)
                         dropped.append(sub_base)
                         bases = bases[:idx] + bases[idx+1:]
@@ -281,14 +288,14 @@ def get_properties(a_class):
     if hasattr(a_class, "__dict__"):
         properties = {}
         for key in a_class.__dict__:
-            if is_property(a_class.__dict__[key]):
+            if is_property(a_class.__dict__[key]) and not key is None:
                 properties[key] = a_class.__dict__[key]
 
         bases = get_bases(a_class)
         for base in bases:
             if hasattr(base, "__dict__"):
                 for key in base.__dict__:
-                    if is_property(base.__dict__[key]):
+                    if is_property(base.__dict__[key]) and not key is None:
                         if key in properties:
                             properties.pop(key)
         return properties
@@ -369,7 +376,14 @@ def reliable_repr(value):
     for num_type in NUM_TYPES:
         if isinstance(value, num_type):
             return repr(num_type(value))
-    return repr(value)
+
+    try:
+        return repr(value)
+    except:
+        try:
+            return repr(str(value))
+        except:
+            return str(value)
 
 
 def sanitize_value(p_value):
@@ -399,15 +413,21 @@ def extract_alpha_prefix(p_string, default_prefix="some"):
 
 
 def report(msg, *data):
-    """Say something at error level (stderr)"""
-    sys.stderr.write(msg % data)
-    sys.stderr.write("\n")
+    """Say something at error level (stdout)"""
+    # print(msg)
+    # print(data)
+    # sys.stdout.write(msg % data)
+    print(" " * CURRENT_ACTION_LENGTH, end="\r")
+    logger.error(msg % data)
+    # sys.stdout.write(msg % data)
+    # sys.stdout.write("\n")
 
 
 def say(msg, *data):
     """Say something at info level (stdout)"""
-    sys.stdout.write(msg % data)
-    sys.stdout.write("\n")
+    pass
+    # sys.stdout.write(msg % data)
+    # sys.stdout.write("\n")
 
 
 def transform_seq(results, toplevel=True):
@@ -518,6 +538,24 @@ def has_item_starting_with(p_seq, p_start):
             return True
     return False
 
+def out_docstring_no_out(out_func, docstring, indent):
+    if not isinstance(docstring, str): return
+    lines = docstring.strip().split("\n")
+    if lines:
+        if len(lines) == 1:
+            return '""" ' + lines[0] + ' """'
+        else:
+            text = '"""\n'
+            for line in lines:
+                if line.strip() == '': continue
+                try:
+                    text += line + '\n'
+                except UnicodeEncodeError:
+                    continue
+            text += '"""'
+
+            return text
+
 
 def out_docstring(out_func, docstring, indent):
     if not isinstance(docstring, str): return
@@ -535,15 +573,33 @@ def out_docstring(out_func, docstring, indent):
                     continue
             out_func(indent, '"""')
 
+def out_doc_attr_no_out(out_func, p_object, indent, p_class=None):
+    try:
+        the_doc = getattr(p_object, "__doc__", None)
+    except:
+        the_doc = None
+    if the_doc:
+        if p_class and the_doc == object.__init__.__doc__ and p_object is not object.__init__ and p_class.__doc__:
+            the_doc = str(p_class.__doc__) # replace stock init's doc with class's; make it a certain string.
+            the_doc += "\n# (copied from class doc)"
+        the_doc = out_docstring_no_out(out_func, the_doc, indent)
+        return the_doc
+    else:
+        return '""" no doc """'
+
 def out_doc_attr(out_func, p_object, indent, p_class=None):
-    the_doc = getattr(p_object, "__doc__", None)
+    try:
+        the_doc = getattr(p_object, "__doc__", None)
+    except:
+        the_doc = None
     if the_doc:
         if p_class and the_doc == object.__init__.__doc__ and p_object is not object.__init__ and p_class.__doc__:
             the_doc = str(p_class.__doc__) # replace stock init's doc with class's; make it a certain string.
             the_doc += "\n# (copied from class doc)"
         out_docstring(out_func, the_doc, indent)
+        return the_doc
     else:
-        out_func(indent, "# no doc")
+        out_func(indent, '""" no doc """')
 
 def is_skipped_in_module(p_module, p_value):
     """
@@ -604,6 +660,8 @@ def restore_parameters_for_overloads(parameter_lists):
             if pl[param_index] != name:
                 star_args = True
                 break
+        if name in keyword.kwlist:
+            name = name + '_'
         if star_args: break
         if optional and not '=' in name:
             params.append(name + '=None')
@@ -615,7 +673,20 @@ def restore_parameters_for_overloads(parameter_lists):
     return params
 
 def build_signature(p_name, params):
-    return p_name + '(' + ', '.join(params) + ')'
+    if not params:
+        return p_name + '()'
+
+    t_string = p_name + '('
+    for param in params:
+        if param:
+            t_string += str(param) + ', '
+
+    if t_string.endswith(', '):
+        t_string = t_string[:-2] + ')'
+    else:
+        t_string += ')'
+
+    return t_string
 
 
 def propose_first_param(deco):
@@ -624,7 +695,8 @@ def propose_first_param(deco):
         return "self"
     if deco == "classmethod":
         return "cls"
-        # if deco == "staticmethod":
+    if deco == "staticmethod":
+        return "cls"
     return None
 
 def qualifier_of(cls, qualifiers_to_skip):
@@ -680,14 +752,28 @@ CURRENT_ACTION = "nothing yet"
 def action(msg, *data):
     global CURRENT_ACTION
     CURRENT_ACTION = msg % data
-    note(msg, *data)
+    # note(msg, *data)
+
+    global CURRENT_ACTION_LENGTH
+
+    if len(CURRENT_ACTION) > 120:
+        CURRENT_ACTION = CURRENT_ACTION[:120] + "..."
+
+    CURRENT_ACTION = CURRENT_ACTION.replace("\n", " ")
+
+    print(" " * CURRENT_ACTION_LENGTH, end='\r')
+    print(CURRENT_ACTION, end='\r')
+
+    CURRENT_ACTION_LENGTH = len(CURRENT_ACTION)
+
 
 def note(msg, *data):
-    """Say something at debug info level (stderr)"""
+    """Say something at debug info level (stdout)"""
     global _is_verbose
     if _is_verbose:
-        sys.stderr.write(msg % data)
-        sys.stderr.write("\n")
+        # sys.stdout.write(msg % data)
+        # sys.stdout.write("\n")
+        pass
 
 
 ##############  plaform-specific methods    #######################################################
@@ -718,7 +804,10 @@ def restore_clr(p_name, p_class):
     Restore the function signature by the CLR type signature
     :return (is_static, spec, sig_note)
     """
-    clr_type = clr.GetClrType(p_class)
+    try:
+        clr_type = clr.GetClrType(p_class)
+    except:
+        return False, p_name + '(self, *args)', 'cannot find CLR type'
     if p_name == '__new__':
         methods = [c for c in clr_type.GetConstructors()]
         if not methods:
@@ -726,7 +815,10 @@ def restore_clr(p_name, p_class):
     else:
         methods = [m for m in clr_type.GetMethods() if m.Name == p_name]
         if not methods:
-            bases = p_class.__bases__
+            try:
+                bases = p_class.__bases__
+            except:
+                bases = []
             if len(bases) == 1 and p_name in dir(bases[0]):
                 # skip inherited methods
                 return False, None, None
@@ -735,11 +827,16 @@ def restore_clr(p_name, p_class):
 
     parameter_lists = []
     for m in methods:
-        parameter_lists.append([p.Name for p in m.GetParameters()])
+        try:
+            parameter_lists.append([p.Name for p in m.GetParameters()])
+        except:
+            continue
     params = restore_parameters_for_overloads(parameter_lists)
     is_static = False
-    if not methods[0].IsStatic:
+    if not methods[0].IsStatic and p_name != '__new__':
         params = ['self'] + params
+    elif p_name == '__new__':
+        params = ['cls'] + params
     else:
         is_static = True
     return is_static, build_signature(p_name, params), None
