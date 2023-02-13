@@ -272,13 +272,14 @@ def get_methods(a_class):
             if is_callable(a_class.__dict__[key]):
                 methods[key] = a_class.__dict__[key]
 
-        bases = get_bases(a_class)
-        for base in bases:
-            if hasattr(base, "__dict__"):
-                for key in base.__dict__:
-                    if is_callable(base.__dict__[key]):
-                        if key in methods:
-                            methods.pop(key)
+        # TODO: This is a hack to remove methods that are inherited from base classes. but it doesn't check for methods that are overridden in the class.
+        # bases = get_bases(a_class)
+        # for base in bases:
+        #     if hasattr(base, "__dict__"):
+        #         for key in base.__dict__:
+        #             if is_callable(base.__dict__[key]):
+        #                 if key in methods:
+        #                     methods.pop(key)
         return methods
     else:
         return {}

@@ -1,5 +1,8 @@
 
-PATHS = ["C:\\Program Files\\Siemens\\Automation\\Portal V17\\PublicAPI\\V17", "C:\\Program Files\\Siemens\\Automation\\Portal V17\\PublicAPI\\V17.AddIn"]
+PATHS = [
+    "C:\\Program Files\\Siemens\\Automation\\Portal V17\\PublicAPI\\V17",
+    "C:\\Program Files\\Siemens\\Automation\\Portal V17\\PublicAPI\\V17.AddIn",
+    ]
 
 ASSEMBLIES = [
     ### GAC
@@ -517,8 +520,8 @@ CUSTOM = [
 
 BUILTINS = [
     ## BATCH 1
-    # "clr",
-    # "wpf",
+    "clr",
+    "wpf",
 ]
 
 ASSEMBLIES = list(set(ASSEMBLIES))

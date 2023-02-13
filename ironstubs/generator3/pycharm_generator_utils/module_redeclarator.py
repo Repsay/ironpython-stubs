@@ -904,6 +904,7 @@ class ModuleRedeclarator(object):
                     found = self.find_class_import_statement(base)
                     if not found:
                         self.used_imports_not_found.append(base)
+            bases_list = sorted(bases_list)
             base_def = "(" + ", ".join(bases_list) + ")"
 
             if self.split_modules:
@@ -911,6 +912,8 @@ class ModuleRedeclarator(object):
                     local_import = self.create_local_import(base)
                     if local_import:
                         out(indent, local_import)
+        skipped_bases = list(set(skipped_bases))
+        skipped_bases = sorted(skipped_bases)
         out(indent, "class ", p_name, base_def, ":",
             skipped_bases and " # skipped bases: " + ", ".join(skipped_bases) or "")
         out_doc_attr(out, p_class, indent + 1)
@@ -1048,6 +1051,19 @@ class ModuleRedeclarator(object):
                 else:
                     found = self.find_class_import_statement(item_type)
                     if found:
+                        if item_type == "list" or item_type == "dict":
+                            if "typing" not in self.used_imports:
+                                self.used_imports["typing"] = []
+
+                            if not "Any" in self.used_imports["typing"]:
+                                self.used_imports["typing"].append("Any")
+
+                        if item_type == "list":
+                            item_type = item_type + "[Any]"
+
+                        if item_type == "dict":
+                            item_type = item_type + "[Any, Any]"
+
                         out(indent + 1, item_name + ": " + item_type + " = ...")
                     else:
                         out(indent + 1, item_name + " = ...")
