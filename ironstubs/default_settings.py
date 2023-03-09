@@ -525,5 +525,3 @@ BUILTINS = [
 ]
 
 ASSEMBLIES = list(set(ASSEMBLIES))
-
-ASSEMBLIES = []
